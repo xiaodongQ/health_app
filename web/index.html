@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>健康指标管理系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            /* 柔和的色彩搭配 */
+            --primary-gradient-start: #4A90E2;
+            --primary-gradient-end: #50C878;
+            --primary-color: #4A90E2;
+            --background-light: #f8f9fa;
+            --background-gradient: linear-gradient(135deg, var(--background-light), #ffffff);
+            --card-background: #ffffff;
+            --text-primary: #2c3e50;
+            --text-secondary: #6c757d;
+            --success-color: #28a745;
+            --success-gradient: linear-gradient(135deg, #28a745, #2ecc71);
+            --error-color: #dc3545;
+            --error-gradient: linear-gradient(135deg, #dc3545, #e74c3c);
+            --warning-color: #ffc107;
+            --warning-gradient: linear-gradient(135deg, #ffc107, #f39c12);
+            --border-color: #e9ecef;
+            --shadow-light: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-medium: 0 4px 12px rgba(0,0,0,0.12);
+            --shadow-hover: 0 6px 16px rgba(0,0,0,0.16);
+            --radius-small: 4px;
+            --radius-medium: 8px;
+            --radius-large: 12px;
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: var(--background-gradient);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        header {
+            background: linear-gradient(135deg, var(--primary-gradient-start), var(--primary-gradient-end));
+            color: white;
+            padding: var(--spacing-lg);
+            text-align: center;
+            box-shadow: var(--shadow-medium);
+        }
+        h1 {
+            margin: 0;
+            font-weight: 600;
+        }
+        nav {
+            background: linear-gradient(to bottom, #343a40, #2d3238);
+            padding: var(--spacing-sm);
+            text-align: center;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: var(--spacing-sm) calc(var(--spacing-sm) * 1.5);
+            margin: 0 var(--spacing-xs);
+            border-radius: var(--radius-medium);
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        nav a:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+        }
+        nav a.active {
+            background: linear-gradient(135deg, var(--primary-gradient-start), var(--primary-gradient-end));
+            box-shadow: var(--shadow-light);
+        }
+        .container {
+            max-width: 1200px;
+            margin: var(--spacing-xl) auto;
+            padding: var(--spacing-lg);
+        }
+        .section {
+            display: none;
+            background: var(--card-background);
+            border-radius: var(--radius-large);
+            box-shadow: var(--shadow-light);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+            transition: all 0.3s ease;
+        }
+        .section.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        form {
+            margin: var(--spacing-lg) 0;
+        }
+        input, select, textarea, button {
+            display: block;
+            width: 100%;
+            margin: var(--spacing-sm) 0;
+            padding: var(--spacing-sm);
+            font-size: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-medium);
+            transition: all 0.3s ease;
+        }
+        
+        .indicator-value {
+            padding: var(--spacing-xs) var(--spacing-sm);
+            height: 2.2rem;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+        }
+        button {
+            background: linear-gradient(135deg, var(--primary-gradient-start), var(--primary-gradient-end));
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: var(--radius-medium);
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-light);
+        }
+        button:hover {
+            background: linear-gradient(135deg, #3a7bc8, #40b066);
+            transform: scale(1.02);
+            box-shadow: var(--shadow-medium);
+        }
+        button:active {
+            transform: scale(0.98);
+            box-shadow: var(--shadow-light);
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: var(--spacing-md) 0;
+            border-radius: var(--radius-medium);
+            overflow: hidden;
+            background: var(--card-background);
+            box-shadow: inset 0 0 0 1px var(--border-color);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--spacing-lg);
+        }
+        .card {
+            background: var(--card-background);
+            border-radius: var(--radius-large);
+            box-shadow: var(--shadow-light);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+            transition: all 0.3s ease;
+            border: 1px solid var(--border-color);
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-medium);
+        }
+        .hidden {
+            display: none;
+        }
+        .error {
+            color: var(--error-color);
+            margin: var(--spacing-sm) 0;
+            padding: var(--spacing-sm);
+            background: rgba(220, 53, 69, 0.1);
+            border-radius: var(--radius-medium);
+            border-left: 4px solid var(--error-color);
+        }
+        .success {
+            color: var(--success-color);
+            margin: var(--spacing-sm) 0;
+            padding: var(--spacing-sm);
+            background: rgba(40, 167, 69, 0.1);
+            border-radius: var(--radius-medium);
+            border-left: 4px solid var(--success-color);
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: var(--spacing-lg);
+            border-bottom: 1px solid var(--border-color);
+            overflow-x: auto;
+        }
+        .tab {
+            padding: var(--spacing-sm) var(--spacing-md);
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: var(--radius-medium) var(--radius-medium) 0 0;
+            margin-right: var(--spacing-xs);
+            white-space: nowrap;
+            transition: all 0.3s ease;
+        }
+        .tab.active {
+            background-color: var(--background-light);
+            border-color: var(--border-color);
+            border-bottom: 1px solid var(--card-background);
+            margin-bottom: -1px;
+            color: var(--primary-color);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border-radius: var(--radius-medium);
+            overflow: hidden;
+            box-shadow: var(--shadow-light);
+        }
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: calc(var(--spacing-sm) + 2px);
+            text-align: left;
+        }
+        th {
+            background: linear-gradient(to bottom, var(--background-light), #e9ecef);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .abnormal {
+            background: linear-gradient(135deg, #ffe6e6, #ffeaea);
+        }
+        .indicator-group {
+            margin: var(--spacing-sm) 0;
+            padding: var(--spacing-sm);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-medium);
+            background: var(--background-light);
+            transition: all 0.3s ease;
+        }
+        .indicator-group:hover {
+            box-shadow: var(--shadow-light);
+            border-color: #dae0e5;
+        }
+        .indicator-group label {
+            display: block;
+            margin-bottom: var(--spacing-xs);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .section-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            margin-bottom: var(--spacing-md);
+            color: var(--text-primary);
+            background: linear-gradient(135deg, #e9ecef, #f8f9fa);
+            padding: var(--spacing-md);
+            border-radius: var(--radius-medium);
+            border-left: 4px solid var(--primary-color);
+            box-shadow: var(--shadow-light);
+        }
+        .trend-charts {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-lg);
+        }
+        @media (max-width: 1200px) {
+            .trend-charts {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 768px) {
+            .trend-charts {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* 为单个趋势图表容器添加更紧凑的样式 */
+        .trend-chart-single {
+            border: 1px solid var(--border-color);
+            padding: var(--spacing-md);
+            border-radius: var(--radius-large);
+            background: var(--card-background);
+            box-shadow: var(--shadow-light);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .trend-chart-single:hover {
+            box-shadow: var(--shadow-medium);
+            transform: translateY(-2px);
+        }
+        
+        /* 图表标题样式 */
+        .trend-chart-single h4 {
+            margin: 0 0 var(--spacing-sm) 0;
+            font-size: 0.9rem;
+            text-align: center;
+            color: var(--text-primary);
+        }
+        
+        /* 图表容器样式 */
+        .trend-chart-single .chart-container {
+            flex: 1;
+            min-height: 200px;
+        }
+        .trend-chart-container {
+            border: 1px solid var(--border-color);
+            padding: var(--spacing-lg);
+            border-radius: var(--radius-large);
+            background: var(--card-background);
+            box-shadow: var(--shadow-light);
+            transition: all 0.3s ease;
+        }
+        .trend-chart-container:hover {
+            box-shadow: var(--shadow-medium);
+            transform: translateY(-2px);
+        }
+        .trend-table {
+            margin-top: var(--spacing-md);
+        }
+        .trend-table table {
+            font-size: 0.85em;
+            margin: var(--spacing-md) 0;
+            border-radius: var(--radius-medium);
+        }
+        .trend-table th, .trend-table td {
+            padding: var(--spacing-xs) var(--spacing-sm);
+        }
+        .delete-record-btn {
+            background: linear-gradient(135deg, #dc3545, #e74c3c);
+        }
+        .delete-record-btn:hover {
+            background: linear-gradient(135deg, #c82333, #d62c1a);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>健康指标管理系统</h1>
+    </header>
+    
+    <nav>
+        <a href="#" class="nav-link active" data-target="dashboard">仪表板</a>
+        <a href="#" class="nav-link" data-target="add-record">添加记录</a>
+        <a href="#" class="nav-link" data-target="trends">趋势分析</a>
+        <a href="#" class="nav-link" data-target="reminders">提醒设置</a>
+        <a href="#" class="nav-link" data-target="records-list">历史记录</a>
+    </nav>
+    
+    <div class="container">
+        <!-- 仪表板 -->
+        <section id="dashboard" class="section active">
+            <h2>健康指标仪表板</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>快速概览</h3>
+                    <p>记录您的健康指标，追踪趋势变化</p>
+                    <p>设置提醒，不错过重要检查</p>
+                </div>
+                <div class="card">
+                    <h3>最近记录</h3>
+                    <div id="recent-records"></div>
+                </div>
+                <div class="card">
+                    <h3>即将到来的提醒</h3>
+                    <div id="upcoming-reminders"></div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 添加记录 -->
+        <section id="add-record" class="section">
+            <h2>添加健康记录</h2>
+            <form id="healthRecordForm">
+                <label for="userId">用户ID:</label>
+                <input type="number" id="userId" value="1" placeholder="默认为1" required>
+                
+                <label for="recordDate">记录日期:</label>
+                <input type="date" id="recordDate" required>
+                
+                <h3 class="section-title">生化筛查</h3>
+                <div id="shenghuaPingChaiContainer" class="category-container">
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">肌酐 (μmol/L)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="shenghua_jigan" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">尿素 (mmol/L)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="shenghua_nisu" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">钾 (mmol/L)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="shenghua_jia" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">空腹血糖 (mmol/L)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="shenghua_kongfu_xuetang" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="section-title">血常规</h3>
+                <div id="xuechangguiContainer" class="category-container">
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">红细胞 (×10^12/L)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="xuechanggui_hongxibao" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">血红蛋白 (g/L)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="xuechanggui_xuehongdanbai" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">红细胞压积 (%)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="xuechanggui_hongxibaoyaji" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="section-title">尿常规</h3>
+                <div id="niaochangguiContainer" class="category-container">
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">隐血 (HPF)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="niaochanggui_yinxie" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">蛋白质 (g/L)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="niaochanggui_danbaizhi" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">红细胞 (HPF)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="niaochanggui_hongxibao_niao" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">非鳞状上皮细胞</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="niaochanggui_feilinquangyiji" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="section-title">尿蛋白、尿素、肌酐测定</h3>
+                <div id="niaodanbaonisujiContainer" class="category-container">
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">尿蛋白 (mg/dL)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="niaodanbaonisuji_niaodanbai" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                    <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                        <label style="flex: 1; margin: 0;">尿蛋白肌酐比值 (mg/g)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                            <input type="number" class="indicator-value" step="any" value="0" name="niaodanbaonisuji_bizhi" style="flex: 1; margin: 0;" required>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit">提交记录</button>
+            </form>
+            <div id="addRecordMessage"></div>
+        </section>
+
+        <!-- 趋势分析 -->
+        <section id="trends" class="section">
+            <h2>趋势分析</h2>
+            <div>
+                <label for="trendsUserId">用户ID:</label>
+                <input type="number" id="trendsUserId" value="1" placeholder="默认为1" required>
+                <button onclick="loadAllTrends()">加载所有趋势图</button>
+            </div>
+            
+            <div id="allTrendsCharts" class="trend-charts"></div>
+        </section>
+        
+        <!-- 提醒设置 -->
+        <section id="reminders" class="section">
+            <h2>提醒设置</h2>
+            <form id="reminderForm">
+                <label for="reminderUserId">用户ID:</label>
+                <input type="number" id="reminderUserId" value="1" placeholder="默认为1" required>
+                
+                <label for="reminderType">提醒类型:</label>
+                <select id="reminderType" required>
+                    <option value="">请选择</option>
+                    <option value="medication">用药提醒</option>
+                    <option value="test">检查提醒</option>
+                </select>
+                
+                <label for="reminderTitle">提醒内容:</label>
+                <input type="text" id="reminderTitle" placeholder="如：定期复查肾功能" required>
+                
+                <label for="reminderDate">提醒日期:</label>
+                <input type="date" id="reminderDate" required>
+                
+                <label for="reminderFrequency">频率:</label>
+                <select id="reminderFrequency">
+                    <option value="">一次性提醒</option>
+                    <option value="daily">每天</option>
+                    <option value="weekly">每周</option>
+                    <option value="monthly">每月</option>
+                    <option value="yearly">每年</option>
+                </select>
+                
+                <button type="submit">添加提醒</button>
+            </form>
+            <div id="addReminderMessage"></div>
+            
+            <h3>我的提醒列表</h3>
+            <div id="remindersList"></div>
+        </section>
+        
+        <!-- 历史记录 -->
+        <section id="records-list" class="section">
+            <h2>历史记录</h2>
+            <div>
+                <label for="recordsUserId">用户ID:</label>
+                <input type="number" id="recordsUserId" value="1" placeholder="默认为1" required>
+                <button onclick="loadHealthRecords()">加载记录</button>
+            </div>
+            <div id="healthRecordsList"></div>
+        </section>
+    </div>
+
+    <script>
+        const apiBaseUrl = "http://localhost:8081/api";
+        let currentUserId = 1; // 默认用户ID
+        let currentIndicator = "肌酐"; // 默认指标
+        let trendChart = null;
+        
+        // 导航功能
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = this.getAttribute('data-target');
+                
+                // 移除所有活动状态
+                document.querySelectorAll('.section').forEach(section => {
+                    section.classList.remove('active');
+                });
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    link.classList.remove('active');
+                });
+                
+                // 显示目标部分
+                document.getElementById(target).classList.add('active');
+                this.classList.add('active');
+                
+                // 加载相应数据
+                if (target === 'dashboard') {
+                    loadDashboardData();
+                } else if (target === 'trends') {
+                    loadTrendAnalysis();
+                } else if (target === 'reminders') {
+                    loadReminders();
+                }
+            });
+        });
+        
+        // 提交健康记录
+        document.getElementById('healthRecordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const userId = document.getElementById('userId').value;
+            const recordDate = document.getElementById('recordDate').value;
+            
+            // 检查是否已存在相同用户ID和日期的记录
+            try {
+                const checkResponse = await fetch(`${apiBaseUrl}/health_records/date?user_id=${userId}&date=${recordDate}`);
+                const existingRecord = await checkResponse.json();
+                
+                // 收集指标数据
+                const indicators = [];
+                document.querySelectorAll('.indicator-group').forEach(group => {
+                    const label = group.querySelector('label');
+                    const valueInput = group.querySelector('.indicator-value');
+                    
+                    // 从标签中提取指标名称和单位
+                    const labelMatch = label.textContent.match(/^(.+?)\s*\((.+)\)$/);
+                    if (labelMatch) {
+                        const name = labelMatch[1].trim();
+                        const unit = labelMatch[2].trim();
+                        const value = parseFloat(valueInput.value);
+                        
+                        if (name && unit && !isNaN(value)) {
+                            indicators.push({
+                                indicator: name,
+                                value: value,
+                                unit: unit
+                            });
+                        }
+                    } else {
+                        // 如果标签格式不符合预期，尝试从输入框获取
+                        const nameInput = group.querySelector('.indicator-name');
+                        const unitInput = group.querySelector('.indicator-unit');
+                        const name = nameInput ? nameInput.value : '';
+                        const unit = unitInput ? unitInput.value : '';
+                        const value = parseFloat(valueInput.value);
+                        
+                        if (name && unit && !isNaN(value)) {
+                            indicators.push({
+                                indicator: name,
+                                value: value,
+                                unit: unit
+                            });
+                        }
+                    }
+                });
+                
+                if (indicators.length === 0) {
+                    document.getElementById('addRecordMessage').innerHTML = '<div class="error">请至少添加一个指标</div>';
+                    return;
+                }
+                
+                // 将所有指标分为一个综合记录
+                const record = {
+                    user_id: parseInt(userId),
+                    record_date: new Date(recordDate),
+                    category: "综合健康检查", // 因为现在同时录入多个类别，使用综合类别
+                    results: indicators
+                };
+                
+                let response;
+                if (existingRecord) {
+                    // 如果存在现有记录，则更新它
+                    response = await fetch(`${apiBaseUrl}/health_records/${existingRecord.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(record)
+                    });
+                } else {
+                    // 如果不存在现有记录，则创建新记录
+                    response = await fetch(`${apiBaseUrl}/health_records`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(record)
+                    });
+                }
+                
+                const result = await response.json();
+                if (response.ok) {
+                    const action = existingRecord ? '更新' : '添加';
+                    document.getElementById('addRecordMessage').innerHTML = `<div class="success">健康记录${action}成功！</div>`;
+                    document.getElementById('healthRecordForm').reset();
+                    // 重置日期为今天
+                    document.getElementById('recordDate').valueAsDate = new Date();
+                } else {
+                    const action = existingRecord ? '更新' : '添加';
+                    document.getElementById('addRecordMessage').innerHTML = `<div class="error">${action}失败: ${result.message || '未知错误'}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('addRecordMessage').innerHTML = `<div class="error">网络错误: ${error.message}</div>`;
+            }
+        });
+
+        // 提醒设置
+        document.getElementById('reminderForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const reminder = {
+                user_id: parseInt(document.getElementById('reminderUserId').value),
+                type: document.getElementById('reminderType').value,
+                title: document.getElementById('reminderTitle').value,
+                next_date: new Date(document.getElementById('reminderDate').value),
+                frequency: document.getElementById('reminderFrequency').value,
+                is_active: true
+            };
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/reminders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(reminder)
+                });
+                
+                const result = await response.json();
+                if (response.ok) {
+                    document.getElementById('addReminderMessage').innerHTML = '<div class="success">提醒添加成功！</div>';
+                    document.getElementById('reminderForm').reset();
+                    loadReminders(); // 刷新提醒列表
+                } else {
+                    document.getElementById('addReminderMessage').innerHTML = `<div class="error">添加失败: ${result.message || '未知错误'}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('addReminderMessage').innerHTML = `<div class="error">网络错误: ${error.message}</div>`;
+            }
+        });
+        
+        // 加载提醒
+        async function loadReminders() {
+            const userId = document.getElementById('reminderUserId').value || currentUserId; // 优先从输入框获取，否则使用默认值
+            try {
+                const response = await fetch(`${apiBaseUrl}/reminders?user_id=${userId}&active_only=true`);
+                const reminders = await response.json();
+                
+                const container = document.getElementById('remindersList');
+                if (!reminders || !Array.isArray(reminders) || reminders.length === 0) {
+                    container.innerHTML = '<p>暂无提醒</p>';
+                    return;
+                }
+                
+                let html = '<table><tr><th>类型</th><th>内容</th><th>下次提醒</th><th>频率</th><th>操作</th></tr>';
+                reminders.forEach(reminder => {
+                    html += `
+                        <tr>
+                            <td>${reminder.type === 'medication' ? '用药' : '检查'}</td>
+                            <td>${reminder.title}</td>
+                            <td>${reminder.next_date ? reminder.next_date.split('T')[0] : ''}</td>
+                            <td>${reminder.frequency || '一次性'}</td>
+                            <td>
+                                <button onclick="deleteReminder(${reminder.id})">删除</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                html += '</table>';
+                container.innerHTML = html;
+            } catch (error) {
+                document.getElementById('remindersList').innerHTML = `<div class="error">加载提醒失败: ${error.message}</div>`;
+            }
+        }
+
+        // 删除提醒
+        async function deleteReminder(id) {
+            if (!confirm('确定要删除这个提醒吗？')) return;
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/reminders?id=${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    alert('提醒删除成功！');
+                    loadReminders();
+                } else {
+                    alert('删除提醒失败');
+                }
+            } catch (error) {
+                alert(`网络错误: ${error.message}`);
+            }
+        }
+        
+        // 加载趋势数据
+        async function loadTrendData(indicator) {
+            const userId = currentUserId; // 这里可以改为从输入框获取
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/trends?user_id=${userId}&indicator=${encodeURIComponent(indicator)}`);
+                const trends = await response.json();
+                
+                if (!trends || !Array.isArray(trends) || trends.length === 0) {
+                    document.getElementById('trendChart').innerHTML = '<p>暂无该指标的历史数据</p>';
+                    return;
+                }
+                
+                // 准备图表数据
+                const dates = trends.map(item => item.date);
+                const values = trends.map(item => item.value);
+                const abnormalities = trends.map(item => item.abnormal);
+                
+                // 销毁之前的图表实例
+                if (trendChart) {
+                    trendChart.destroy();
+                }
+                
+                // 创建新图表
+                const ctx = document.getElementById('trendChart').getContext('2d');
+                trendChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [{
+                            label: `${indicator}趋势`,
+                            data: values,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.1,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${indicator}趋势图`
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('加载趋势数据失败:', error);
+                document.getElementById('trendChart').innerHTML = `<div class="error">加载趋势数据失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载所有趋势图
+        async function loadAllTrends() {
+            const userId = document.getElementById('trendsUserId').value;
+            if (!userId) {
+                alert('请输入用户ID');
+                return;
+            }
+            
+            currentUserId = userId;
+            
+            const container = document.getElementById('allTrendsCharts');
+            container.innerHTML = '<p>正在加载趋势图...</p>';
+            
+            try {
+                // 获取所有指标数据
+                const response = await fetch(`${apiBaseUrl}/health_config`);
+                const config = await response.json();
+                
+                // 清空容器并渲染按类别分组的图表
+                container.innerHTML = '';
+                
+                for (const category of config) {
+                    // 获取当前类别下所有指标的数据
+                    const categoryDataPromises = category.indicators.map(async (indicator) => {
+                        try {
+                            const response = await fetch(`${apiBaseUrl}/trends?user_id=${userId}&indicator=${encodeURIComponent(indicator.name)}`);
+                            const trends = await response.json();
+                            
+                            if (trends && Array.isArray(trends) && trends.length > 0) {
+                                return {
+                                    indicator: indicator.name,
+                                    unit: indicator.unit,
+                                    trends: trends
+                                };
+                            }
+                            return null;
+                        } catch (error) {
+                            console.error(`加载指标 ${indicator.name} 数据失败:`, error);
+                            return null;
+                        }
+                    });
+                    
+                    const categoryDataResults = await Promise.all(categoryDataPromises);
+                    const validData = categoryDataResults.filter(data => data !== null);
+                    
+                    if (validData && Array.isArray(validData) && validData.length > 0) {
+                        // 为每个有效的指标创建单独的图表容器
+                        for (const data of validData) {
+                            // 处理单位显示，如果单位为空则不显示括号
+                            const unitDisplay = data.unit ? ` (${data.unit})` : '';
+                            const chartContainer = document.createElement('div');
+                            chartContainer.className = 'trend-chart-single';
+                            chartContainer.innerHTML = `
+                                <h4>${data.indicator}${unitDisplay} 趋势图</h4>
+                                <div class="chart-container">
+                                    <canvas id="chart-${data.indicator.replace(/\s+/g, '_')}"></canvas>
+                                </div>
+                            `;
+                            
+                            container.appendChild(chartContainer);
+                            
+                            // 准备图表数据
+                            const allDatesSet = new Set();
+                            data.trends.forEach(item => allDatesSet.add(item.date));
+                            const allDates = Array.from(allDatesSet).sort();
+                            
+                            // 整理数据，确保与日期轴对应
+                            const dateValueMap = {};
+                            data.trends.forEach(item => {
+                                dateValueMap[item.date] = item.value;
+                            });
+                            
+                            // 根据所有日期填充数据，缺失的值为null
+                            const chartData = allDates.map(date => dateValueMap[date] || null);
+                            
+                            // 创建图表
+                            const canvasId = `chart-${data.indicator.replace(/\s+/g, '_')}`;
+                            const canvasElement = document.getElementById(canvasId);
+                            
+                            // 如果Canvas元素已经存在Chart实例，则先销毁
+                            if (canvasElement.chartInstance) {
+                                canvasElement.chartInstance.destroy();
+                            }
+                            
+                            const ctx = canvasElement.getContext('2d');
+                            const chart = new Chart(ctx, {
+                                type: 'line',
+                                data: {
+                                    labels: allDates,
+                                    datasets: [{
+                                        label: `${data.indicator}${unitDisplay}`,
+                                        data: chartData,
+                                        borderColor: getRandomColor(),
+                                        backgroundColor: 'rgba(0, 0, 0, 0)',
+                                        tension: 0.1,
+                                        fill: false
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    plugins: {
+                                        legend: {
+                                            display: true,
+                                            position: 'bottom'
+                                        }
+                                    },
+                                    scales: {
+                                        x: {
+                                            display: true,
+                                            title: {
+                                                display: true,
+                                                text: '日期'
+                                            }
+                                        },
+                                        y: {
+                                            display: true,
+                                            title: {
+                                                display: true,
+                                                text: data.unit || '值'
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                            
+                            // 保存Chart实例引用，以便后续销毁
+                            canvasElement.chartInstance = chart;
+                        }
+                    }
+                }
+                
+                if (container.children.length === 0) {
+                    container.innerHTML = '<p>暂无任何指标的历史数据</p>';
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="error">加载趋势数据失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 生成随机颜色的辅助函数
+        function getRandomColor() {
+            const colors = [
+                'rgb(75, 192, 192)',   // 青色
+                'rgb(255, 99, 132)',   // 红色
+                'rgb(54, 162, 235)',   // 蓝色
+                'rgb(255, 205, 86)',   // 黄色
+                'rgb(153, 102, 255)',  // 紫色
+                'rgb(255, 159, 64)',   // 橙色
+                'rgb(75, 192, 192)',   // 青色
+                'rgb(199, 199, 199)'   // 灰色
+            ];
+            
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+        
+        // 加载所有指标
+        async function loadAllIndicators() {
+            const userId = currentUserId; // 这里可以改为从输入框获取
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/indicators?user_id=${userId}`);
+                const indicators = await response.json();
+                
+                const container = document.getElementById('allIndicatorsList');
+                if (indicators.length === 0) {
+                    container.innerHTML = '<p>暂无指标数据</p>';
+                    return;
+                }
+                
+                let html = '<h3>所有可用指标</h3><div class="grid">';
+                indicators.forEach(indicator => {
+                    html += `<div class="card">${indicator}</div>`;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (error) {
+                document.getElementById('allIndicatorsList').innerHTML = `<div class="error">加载指标列表失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载健康记录
+        async function loadHealthRecords() {
+            const userId = document.getElementById('recordsUserId').value;
+            if (!userId) {
+                alert('请输入用户ID');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/health_records?user_id=${userId}`);
+                const records = await response.json();
+                
+                const container = document.getElementById('healthRecordsList');
+                if (!records || !Array.isArray(records) || records.length === 0) {
+                    container.innerHTML = '<p>暂无健康记录</p>';
+                    return;
+                }
+                
+                let html = '';
+                records.forEach(record => {
+                    html += `
+                        <div class="card">
+                            <h3>${record.category} - ${record.record_date}</h3>
+                            <table>
+                                <tr><th>指标</th><th>数值</th><th>单位</th></tr>
+                    `;
+                    record.results.forEach(result => {
+                        html += `
+                            <tr>
+                                <td>${result.indicator}</td>
+                                <td>${result.value}</td>
+                                <td>${result.unit}</td>
+                            </tr>
+                        `;
+                    });
+                    html += `</table>
+                             <div style="margin-top: 10px;">
+                                 <button onclick="deleteRecord(${record.id})" class="delete-record-btn">删除整条记录</button>
+                             </div>
+                         </div>`;
+                });
+                
+                container.innerHTML = html;
+            } catch (error) {
+                document.getElementById('healthRecordsList').innerHTML = `<div class="error">加载健康记录失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载仪表板数据
+        async function loadDashboardData() {
+            // 加载最近记录
+            try {
+                const response = await fetch(`${apiBaseUrl}/health_records?user_id=${currentUserId}`);
+                const records = await response.json();
+                
+                const recentContainer = document.getElementById('recent-records');
+                if (records && Array.isArray(records) && records.length > 0) {
+                    // 计算记录条数（按日期分组，同一天的算一条）
+                    const recordsByDate = {};
+                    records.forEach(record => {
+                        const date = record.record_date.split('T')[0]; // 取日期部分
+                        if (!recordsByDate[date]) {
+                            recordsByDate[date] = [];
+                        }
+                        recordsByDate[date].push(record);
+                    });
+                    
+                    const recordCount = Object.keys(recordsByDate).length;
+                    
+                    const latestRecord = records[0];
+                    if (latestRecord && latestRecord.results) {
+                        recentContainer.innerHTML = `
+                            <p>总记录条数: ${recordCount}</p>
+                            <p>最新记录日期: ${latestRecord.record_date.split('T')[0]}</p>
+                            <p>最新记录指标数量: ${Array.isArray(latestRecord.results) ? latestRecord.results.length : 0}</p>
+                        `;
+                    } else {
+                        recentContainer.innerHTML = '<p>暂无有效记录</p>';
+                    }
+                } else {
+                    recentContainer.innerHTML = '<p>暂无记录</p>';
+                }
+            } catch (error) {
+                document.getElementById('recent-records').innerHTML = `<div class="error">加载最近记录失败: ${error.message}</div>`;
+            }
+            
+            // 加载即将到来的提醒
+            try {
+                const response = await fetch(`${apiBaseUrl}/reminders/upcoming?user_id=${currentUserId}&days_ahead=30`);
+                const reminders = await response.json();
+                
+                const upcomingContainer = document.getElementById('upcoming-reminders');
+                if (reminders && Array.isArray(reminders) && reminders.length > 0) {
+                    let html = '<p><strong>未来30天提醒:</strong></p>';
+                    reminders.forEach(reminder => {
+                        html += `<p>${reminder.next_date.split('T')[0]} - ${reminder.title}</p>`;
+                    });
+                    upcomingContainer.innerHTML = html;
+                } else {
+                    upcomingContainer.innerHTML = '<p>未来30天内无提醒</p>';
+                }
+            } catch (error) {
+                document.getElementById('upcoming-reminders').innerHTML = `<div class="error">加载提醒失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载选中类别的指标
+        async function loadCategoryIndicators() {
+            const category = document.getElementById('category').value;
+            if (!category) {
+                document.getElementById('indicatorsContainer').innerHTML = '';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/health_config`);
+                const config = await response.json();
+                
+                // 查找选定的类别
+                const selectedCategory = config.find(cat => cat.name === category);
+                if (!selectedCategory) {
+                    document.getElementById('indicatorsContainer').innerHTML = '<p>未找到该类别的指标</p>';
+                    return;
+                }
+                
+                // 根据类别设置特定的默认值
+                let defaultValueMap = {};
+                if (category === '生化筛查') {
+                    defaultValueMap = {
+                        '肌酐': 0,
+                        '尿素': 0,
+                        '钾': 0,
+                        '空腹血糖': 0
+                    };
+                } else if (category === '血常规') {
+                    defaultValueMap = {
+                        '红细胞': 0,
+                        '血红蛋白': 0,
+                        '红细胞压积':0 
+                    };
+                } else if (category === '尿常规') {
+                    defaultValueMap = {
+                        '隐血': 0, // 对应++（80）
+                        '蛋白质': 0, // 对应++（1.0）
+                        '红细胞': 0,
+                        '非鳞状上皮细胞':0 
+                    };
+                } else if (category === '尿蛋白、尿素、肌酐测定') {
+                    defaultValueMap = {
+                        '尿蛋白': 0,
+                        '尿蛋白肌酐比值': 0
+                    };
+                }
+                
+                // 生成指标输入表单
+                let html = '';
+                selectedCategory.indicators.forEach((indicator, index) => {
+                    const defaultValue = defaultValueMap[indicator.name] !== undefined ? defaultValueMap[indicator.name] : 0;
+                    html += `
+                        <div class="indicator-group" style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                            <label style="flex: 1; margin: 0;">${indicator.name} (${indicator.unit})</label>
+                            <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 200px;">
+                                <input type="number" class="indicator-value" step="any" value="${defaultValue}" style="flex: 1; margin: 0;" required>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('indicatorsContainer').innerHTML = html;
+            } catch (error) {
+                console.error('加载指标配置失败:', error);
+                document.getElementById('indicatorsContainer').innerHTML = `<div class="error">加载指标配置失败: ${error.message}</div>`;
+            }
+        }
+
+        // 删除整条记录
+        async function deleteRecord(recordId) {
+            if (!confirm('确定要删除整条记录吗？此操作不可恢复。')) return;
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/health_records/${recordId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    alert('记录已删除');
+                    loadHealthRecords(); // 重新加载记录
+                } else {
+                    throw new Error(`删除记录失败: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('删除记录失败:', error);
+                alert(`删除记录失败: ${error.message}`);
+            }
+        }
+        
+        // 页面加载完成后初始化
+        window.onload = function() {
+            // 设置默认日期为今天
+            document.getElementById('recordDate').valueAsDate = new Date();
+            document.getElementById('reminderDate').valueAsDate = new Date();
+            
+            // 加载初始数据
+            loadDashboardData();
+        };
+    </script>
+</body>
+</html>
