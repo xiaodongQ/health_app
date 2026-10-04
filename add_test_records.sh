@@ -1,169 +1,113 @@
 #!/bin/bash
 
 # 健康指标记录批量添加脚本
-# 用于向健康指标管理系统添加指定的记录
+# 用法: ./add_test_records.sh
 
-# API基础URL
-API_BASE_URL="http://localhost:8081/api"
+DB_FILE="${DB_FILE:-health_app.db}"
 
-# 用户ID（您可以根据需要修改）
-USER_ID=1
+# 检查 sqlite3
+if ! command -v sqlite3 &> /dev/null; then
+    echo "错误: 需要安装 sqlite3"
+    exit 1
+fi
 
-# 添加健康记录的函数
-add_health_record() {
-    local date=$1
-    shift
-    local json_data=$1
-    
-    echo "正在添加 $date 的记录..."
-    
-    response=$(curl -s -w "\n%{http_code}" -X POST \
-        -H "Content-Type: application/json" \
-        -d "$json_data" \
-        "$API_BASE_URL/health_records")
-    
-    # 分离响应体和HTTP状态码 (兼容macOS的BSD版head命令)
-    body=$(echo "$response" | sed '$d')
-    status_code=$(echo "$response" | tail -n 1)
-    
-    if [ "$status_code" -eq 201 ] || [ "$status_code" -eq 200 ]; then
-        echo "✓ $date 记录添加成功"
-    else
-        echo "✗ $date 记录添加失败，状态码: $status_code"
-        echo "错误信息: $body"
-    fi
-    echo ""
+# 检查数据库
+if [ ! -f "$DB_FILE" ]; then
+    echo "错误: 数据库文件 $DB_FILE 不存在"
+    exit 1
+fi
+
+# 添加记录的函数
+# 参数: user_id category record_date notes result1 result2 ...
+# result 格式: "indicator|value|unit|reference|abnormal"
+add_record() {
+    local user_id=$1
+    local category=$2
+    local record_date=$3
+    local notes=$4
+    shift 4
+    local results=("$@")
+
+    # 插入记录
+    local record_id=$(sqlite3 "$DB_FILE" "
+        INSERT INTO health_records (user_id, category, record_date, notes)
+        VALUES ($user_id, '$category', '$record_date', '$notes');
+        SELECT last_insert_rowid();
+    ")
+
+    # 插入指标结果
+    for result in "${results[@]}"; do
+        IFS='|' read -r indicator value unit ref abnormal <<< "$result"
+        sqlite3 "$DB_FILE" "
+            INSERT INTO test_results (record_id, indicator, value, unit, reference, abnormal)
+            VALUES ($record_id, '$indicator', $value, '$unit', '$ref', $abnormal);
+        "
+    done
+
+    echo "添加记录 ID=$record_id 日期=$record_date"
 }
 
-# 添加测试记录
-# 添加2025年6月8日的记录
-echo "开始添加2025年6月8日的记录..."
+echo "=== 添加健康记录 ==="
+echo ""
 
-json_20250608='{
-  "user_id": '$USER_ID',
-  "record_date": "2025-06-08T00:00:00Z",
-  "category": "综合健康检查",
-  "results": [
-    {"indicator": "肌酐", "value": 95, "unit": "μmol/L"},
-    {"indicator": "尿素", "value": 4.5, "unit": "mmol/L"},
-    {"indicator": "钾", "value": 4.2, "unit": "mmol/L"},
-    {"indicator": "空腹血糖", "value": 5.2, "unit": "mmol/L"},
-    {"indicator": "红细胞", "value": 4.5, "unit": "×10^12/L"},
-    {"indicator": "血红蛋白", "value": 140, "unit": "g/L"},
-    {"indicator": "红细胞压积", "value": 42, "unit": "%"},
-    {"indicator": "隐血", "value": 0, "unit": "HPF"},
-    {"indicator": "蛋白质", "value": 0.1, "unit": "g/L"},
-    {"indicator": "红细胞", "value": 2, "unit": "HPF"},
-    {"indicator": "非鳞状上皮细胞", "value": 0.5, "unit": ""},
-    {"indicator": "尿蛋白", "value": 5, "unit": "mg/dL"},
-    {"indicator": "尿蛋白肌酐比值", "value": 0.5, "unit": "mg/g"}
-  ]
-}'
+# 2026-01-18 记录
+add_record 1 "综合健康检查" "2026-01-18" "" \
+    "肌酐|435|μmol/L|57-97|0" \
+    "尿素|30|mmol/L|3.10-8.00|0" \
+    "钾|3.29|mmol/L|3.5-5.3|0" \
+    "空腹血糖|6.34|mmol/L|3.9-6.1|0" \
+    "红细胞|3.88|×10^12/L|4.0-5.5|0" \
+    "血红蛋白|119|g/L|130-175|0" \
+    "红细胞压积|33.9|%|0.40-0.50|0" \
+    "隐血|80|HPF|0-5|0" \
+    "蛋白质|1.0|g/L|0-0.2|0" \
+    "尿蛋白|1.6|mg/dL|0-0.15|0" \
+    "尿蛋白肌酐比值|2.17|mg/g|0-30|0"
 
-add_health_record "2025-06-08" "$json_20250608"
+# 2026-02-15 记录
+add_record 1 "综合健康检查" "2026-02-15" "" \
+    "肌酐|412|μmol/L|57-97|0" \
+    "尿素|28.5|mmol/L|3.10-8.00|0" \
+    "钾|3.45|mmol/L|3.5-5.3|0" \
+    "空腹血糖|5.98|mmol/L|3.9-6.1|0" \
+    "甘油三酯|1.68|mmol/L|0-1.7|0" \
+    "总胆固醇|4.82|mmol/L|2.8-5.2|0" \
+    "红细胞|3.95|×10^12/L|4.0-5.5|0" \
+    "血红蛋白|121|g/L|130-175|0" \
+    "红细胞压积|34.8|%|0.40-0.50|0" \
+    "隐血|60|HPF|0-5|0" \
+    "蛋白质|0.80|g/L|0-0.2|0" \
+    "尿蛋白|1.20|mg/dL|0-0.15|0" \
+    "尿蛋白肌酐比值|1.85|mg/g|0-30|0"
 
-# 添加2025年7月8日的记录
-echo "开始添加2025年7月8日的记录..."
+# 2026-03-22 记录
+add_record 1 "综合健康检查" "2026-03-22" "" \
+    "肌酐|398|μmol/L|57-97|0" \
+    "尿素|26.2|mmol/L|3.10-8.00|0" \
+    "钾|3.52|mmol/L|3.5-5.3|0" \
+    "空腹血糖|5.76|mmol/L|3.9-6.1|0" \
+    "甘油三酯|1.55|mmol/L|0-1.7|0" \
+    "总胆固醇|4.65|mmol/L|2.8-5.2|0" \
+    "高密度脂蛋白|1.18|mmol/L|1.0-1.8|0" \
+    "低密度脂蛋白|2.98|mmol/L|0-3.4|0" \
+    "红细胞|4.01|×10^12/L|4.0-5.5|0" \
+    "血红蛋白|124|g/L|130-175|0" \
+    "红细胞压积|35.6|%|0.40-0.50|0" \
+    "隐血|40|HPF|0-5|0" \
+    "蛋白质|0.50|g/L|0-0.2|0" \
+    "尿蛋白|0.92|mg/dL|0-0.15|0" \
+    "尿蛋白肌酐比值|1.38|mg/g|0-30|0"
 
-json_20250708='{
-  "user_id": '$USER_ID',
-  "record_date": "2025-07-08T00:00:00Z",
-  "category": "综合健康检查",
-  "results": [
-    {"indicator": "肌酐", "value": 98, "unit": "μmol/L"},
-    {"indicator": "尿素", "value": 4.2, "unit": "mmol/L"},
-    {"indicator": "钾", "value": 4.1, "unit": "mmol/L"},
-    {"indicator": "空腹血糖", "value": 5.0, "unit": "mmol/L"},
-    {"indicator": "红细胞", "value": 4.6, "unit": "×10^12/L"},
-    {"indicator": "血红蛋白", "value": 142, "unit": "g/L"},
-    {"indicator": "红细胞压积", "value": 43, "unit": "%"},
-    {"indicator": "隐血", "value": 0, "unit": "HPF"},
-    {"indicator": "蛋白质", "value": 0.1, "unit": "g/L"},
-    {"indicator": "红细胞", "value": 1, "unit": "HPF"},
-    {"indicator": "非鳞状上皮细胞", "value": 0.3, "unit": ""},
-    {"indicator": "尿蛋白", "value": 6, "unit": "mg/dL"},
-    {"indicator": "尿蛋白肌酐比值", "value": 0.6, "unit": "mg/g"}
-  ]
-}'
+echo ""
+echo "=== 当前记录列表 ==="
+sqlite3 -header -column "$DB_FILE" "
+    SELECT hr.id, hr.record_date, hr.category, COUNT(tr.id) as indicators
+    FROM health_records hr
+    LEFT JOIN test_results tr ON hr.id = tr.record_id
+    WHERE hr.user_id = 1
+    GROUP BY hr.id
+    ORDER BY hr.record_date DESC;
+"
 
-add_health_record "2025-07-08" "$json_20250708"
-
-# 添加2025年8月8日的记录
-echo "开始添加2025年8月8日的记录..."
-
-json_20250808='{
-  "user_id": '$USER_ID',
-  "record_date": "2025-08-08T00:00:00Z",
-  "category": "综合健康检查",
-  "results": [
-    {"indicator": "肌酐", "value": 102, "unit": "μmol/L"},
-    {"indicator": "尿素", "value": 4.8, "unit": "mmol/L"},
-    {"indicator": "钾", "value": 4.0, "unit": "mmol/L"},
-    {"indicator": "空腹血糖", "value": 5.1, "unit": "mmol/L"},
-    {"indicator": "红细胞", "value": 4.4, "unit": "×10^12/L"},
-    {"indicator": "血红蛋白", "value": 138, "unit": "g/L"},
-    {"indicator": "红细胞压积", "value": 41, "unit": "%"},
-    {"indicator": "隐血", "value": 0, "unit": "HPF"},
-    {"indicator": "蛋白质", "value": 0.1, "unit": "g/L"},
-    {"indicator": "红细胞", "value": 2, "unit": "HPF"},
-    {"indicator": "非鳞状上皮细胞", "value": 0.4, "unit": ""},
-    {"indicator": "尿蛋白", "value": 4, "unit": "mg/dL"},
-    {"indicator": "尿蛋白肌酐比值", "value": 0.4, "unit": "mg/g"}
-  ]
-}'
-
-add_health_record "2025-08-08" "$json_20250808"
-
-# 添加2025年9月8日的记录
-echo "开始添加2025年9月8日的记录..."
-
-json_20250908='{
-  "user_id": '$USER_ID',
-  "record_date": "2025-09-08T00:00:00Z",
-  "category": "综合健康检查",
-  "results": [
-    {"indicator": "肌酐", "value": 99, "unit": "μmol/L"},
-    {"indicator": "尿素", "value": 4.6, "unit": "mmol/L"},
-    {"indicator": "钾", "value": 4.3, "unit": "mmol/L"},
-    {"indicator": "空腹血糖", "value": 5.3, "unit": "mmol/L"},
-    {"indicator": "红细胞", "value": 4.5, "unit": "×10^12/L"},
-    {"indicator": "血红蛋白", "value": 141, "unit": "g/L"},
-    {"indicator": "红细胞压积", "value": 42, "unit": "%"},
-    {"indicator": "隐血", "value": 0, "unit": "HPF"},
-    {"indicator": "蛋白质", "value": 0.1, "unit": "g/L"},
-    {"indicator": "红细胞", "value": 1, "unit": "HPF"},
-    {"indicator": "非鳞状上皮细胞", "value": 0.2, "unit": ""},
-    {"indicator": "尿蛋白", "value": 5, "unit": "mg/dL"},
-    {"indicator": "尿蛋白肌酐比值", "value": 0.5, "unit": "mg/g"}
-  ]
-}'
-
-add_health_record "2025-09-08" "$json_20250908"
-
-# 添加2025年10月8日的记录
-echo "开始添加2025年10月8日的记录..."
-
-json_20251008='{
-  "user_id": '$USER_ID',
-  "record_date": "2025-10-08T00:00:00Z",
-  "category": "综合健康检查",
-  "results": [
-    {"indicator": "肌酐", "value": 105, "unit": "μmol/L"},
-    {"indicator": "尿素", "value": 4.9, "unit": "mmol/L"},
-    {"indicator": "钾", "value": 4.2, "unit": "mmol/L"},
-    {"indicator": "空腹血糖", "value": 5.0, "unit": "mmol/L"},
-    {"indicator": "红细胞", "value": 4.3, "unit": "×10^12/L"},
-    {"indicator": "血红蛋白", "value": 139, "unit": "g/L"},
-    {"indicator": "红细胞压积", "value": 40, "unit": "%"},
-    {"indicator": "隐血", "value": 0, "unit": "HPF"},
-    {"indicator": "蛋白质", "value": 0.1, "unit": "g/L"},
-    {"indicator": "红细胞", "value": 1, "unit": "HPF"},
-    {"indicator": "非鳞状上皮细胞", "value": 0.3, "unit": ""},
-    {"indicator": "尿蛋白", "value": 6, "unit": "mg/dL"},
-    {"indicator": "尿蛋白肌酐比值", "value": 0.6, "unit": "mg/g"}
-  ]
-}'
-
-add_health_record "2025-10-08" "$json_20251008"
-
-echo "所有记录添加完成！"
+echo ""
+echo "添加完成!"

@@ -39,12 +39,6 @@ func (r *SQLiteHealthRecordRepository) Create(record *models.HealthRecord, resul
 		return 0, sql.ErrConnDone
 	}
 
-	// 确保数据库连接可用
-	if err := r.db.Ping(); err != nil {
-		log.Printf("[Repository] 数据库连接不可用: %v", err)
-		return 0, err
-	}
-
 	// 开始事务
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -98,57 +92,70 @@ func (r *SQLiteHealthRecordRepository) FindByUserID(userID int) ([]*models.Healt
 		return nil, sql.ErrConnDone
 	}
 
-	// 确保数据库连接可用
-	if err := r.db.Ping(); err != nil {
-		log.Printf("[Repository] 数据库连接不可用: %v", err)
-		return nil, err
-	}
-
-	// 查询健康记录
-	recordsQuery := `
-		SELECT id, user_id, record_date, category, created_at, updated_at 
-		FROM health_records 
-		WHERE user_id = ?
-		ORDER BY record_date DESC`
-	rows, err := r.db.Query(recordsQuery, userID)
+	// 使用 JOIN 一次性查询所有记录及关联的检测结果
+	query := `
+		SELECT
+			hr.id, hr.user_id, hr.record_date, hr.category, hr.created_at, hr.updated_at,
+			tr.id, tr.indicator, tr.value, tr.unit, tr.reference, tr.abnormal, tr.created_at, tr.updated_at
+		FROM health_records hr
+		LEFT JOIN test_results tr ON hr.id = tr.record_id
+		WHERE hr.user_id = ?
+		ORDER BY hr.record_date DESC, hr.id, tr.indicator`
+	rows, err := r.db.Query(query, userID)
 	if err != nil {
 		log.Printf("[Repository] 查询健康记录失败: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
 
+	// 用 map 做去重，用 slice 保持 JOIN 结果的顺序（已按 date DESC 排序）
+	recordMap := make(map[int]*models.HealthRecordWithResults)
 	var records []*models.HealthRecordWithResults
 	for rows.Next() {
-		var record models.HealthRecord
+		var hr models.HealthRecord
 		var recordDate string
+		var trID int
+		var indicator string
+		var value float64
+		var unit, reference string
+		var abnormal bool
+		var trCreatedAt, trUpdatedAt time.Time
 
-		err := rows.Scan(&record.ID, &record.UserID, &recordDate, &record.Category, &record.CreatedAt, &record.UpdatedAt)
+		err := rows.Scan(
+			&hr.ID, &hr.UserID, &recordDate, &hr.Category, &hr.CreatedAt, &hr.UpdatedAt,
+			&trID, &indicator, &value, &unit, &reference, &abnormal, &trCreatedAt, &trUpdatedAt,
+		)
 		if err != nil {
 			log.Printf("[Repository] 扫描记录失败: %v", err)
 			return nil, err
 		}
 
-		// 解析日期字符串
-		record.RecordDate, err = time.Parse("2006-01-02", recordDate)
-		if err != nil {
-			log.Printf("[Repository] 解析日期失败: %v", err)
-			return nil, err
+		hr.RecordDate, _ = time.Parse("2006-01-02", recordDate)
+
+		if _, exists := recordMap[hr.ID]; !exists {
+			rec := &models.HealthRecordWithResults{
+				HealthRecord: hr,
+				Results:      []models.TestResult{},
+			}
+			recordMap[hr.ID] = rec
+			records = append(records, rec) // 按 JOIN 结果顺序追加
 		}
 
-		// 获取该记录的检测结果
-		results, err := r.getTestResultsByRecordID(record.ID)
-		if err != nil {
-			log.Printf("[Repository] 获取检测结果失败: %v", err)
-			return nil, err
+		// 如果有检测结果则追加
+		if trID > 0 {
+			recordMap[hr.ID].Results = append(recordMap[hr.ID].Results, models.TestResult{
+				ID:        trID,
+				RecordID:  hr.ID,
+				Indicator: indicator,
+				Value:     value,
+				Unit:      unit,
+				Reference: reference,
+				Abnormal:  abnormal,
+				CreatedAt: trCreatedAt,
+				UpdatedAt: trUpdatedAt,
+			})
 		}
-
-		recordWithResults := &models.HealthRecordWithResults{
-			HealthRecord: record,
-			Results:      results,
-		}
-		records = append(records, recordWithResults)
 	}
-
 	return records, nil
 }
 
@@ -157,12 +164,6 @@ func (r *SQLiteHealthRecordRepository) FindByID(id int) (*models.HealthRecordWit
 	if r.db == nil {
 		log.Printf("[Repository] 数据库连接未初始化")
 		return nil, sql.ErrConnDone
-	}
-
-	// 确保数据库连接可用
-	if err := r.db.Ping(); err != nil {
-		log.Printf("[Repository] 数据库连接不可用: %v", err)
-		return nil, err
 	}
 
 	// 查询健康记录
@@ -208,12 +209,6 @@ func (r *SQLiteHealthRecordRepository) Update(id int, record *models.HealthRecor
 	if r.db == nil {
 		log.Printf("[Repository] 数据库连接未初始化")
 		return sql.ErrConnDone
-	}
-
-	// 确保数据库连接可用
-	if err := r.db.Ping(); err != nil {
-		log.Printf("[Repository] 数据库连接不可用: %v", err)
-		return err
 	}
 
 	// 开始事务
@@ -272,12 +267,6 @@ func (r *SQLiteHealthRecordRepository) Delete(id int) error {
 		return sql.ErrConnDone
 	}
 
-	// 确保数据库连接可用
-	if err := r.db.Ping(); err != nil {
-		log.Printf("[Repository] 数据库连接不可用: %v", err)
-		return err
-	}
-
 	// 开始事务
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -317,12 +306,6 @@ func (r *SQLiteHealthRecordRepository) FindByDateAndUser(userID int, date string
 	if r.db == nil {
 		log.Printf("[Repository] 数据库连接未初始化")
 		return nil, sql.ErrConnDone
-	}
-
-	// 确保数据库连接可用
-	if err := r.db.Ping(); err != nil {
-		log.Printf("[Repository] 数据库连接不可用: %v", err)
-		return nil, err
 	}
 
 	// 查询指定用户和日期的健康记录
@@ -371,12 +354,6 @@ func (r *SQLiteHealthRecordRepository) GetTrendData(userID int, indicator string
 	if r.db == nil {
 		log.Printf("[Repository] 数据库连接未初始化")
 		return nil, sql.ErrConnDone
-	}
-
-	// 确保数据库连接可用
-	if err := r.db.Ping(); err != nil {
-		log.Printf("[Repository] 数据库连接不可用: %v", err)
-		return nil, err
 	}
 
 	var trendQuery string
@@ -441,12 +418,6 @@ func (r *SQLiteHealthRecordRepository) GetAllIndicators(userID int) ([]string, e
 		return nil, sql.ErrConnDone
 	}
 
-	// 确保数据库连接可用
-	if err := r.db.Ping(); err != nil {
-		log.Printf("[Repository] 数据库连接不可用: %v", err)
-		return nil, err
-	}
-
 	// 查询用户的所有指标名称
 	indicatorsQuery := `
 		SELECT DISTINCT tr.indicator
@@ -480,12 +451,6 @@ func (r *SQLiteHealthRecordRepository) getTestResultsByRecordID(recordID int) ([
 	if r.db == nil {
 		log.Printf("[Repository] 数据库连接未初始化")
 		return nil, sql.ErrConnDone
-	}
-
-	// 确保数据库连接可用
-	if err := r.db.Ping(); err != nil {
-		log.Printf("[Repository] 数据库连接不可用: %v", err)
-		return nil, err
 	}
 
 	resultsQuery := `

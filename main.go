@@ -56,6 +56,10 @@ func main() {
 		apiGroup.PUT("/reminders", api.UpdateReminder)
 		apiGroup.DELETE("/reminders", api.DeleteReminder)
 		apiGroup.GET("/reminders/upcoming", api.GetUpcomingReminders)
+
+		// 用户设置
+		apiGroup.GET("/settings", api.GetUserSetting)
+		apiGroup.POST("/settings", api.SetUserSetting)
 	}
 
 	// 静态文件服务 - 使用 /static 路径避免与API路由冲突

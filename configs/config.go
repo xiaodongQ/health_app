@@ -9,8 +9,9 @@ import (
 )
 
 type HealthIndicator struct {
-	Name string `json:"name"`
-	Unit string `json:"unit"`
+	Name      string `json:"name"`
+	Unit      string `json:"unit"`
+	Reference string `json:"reference"` // 参考范围
 }
 
 type HealthCategory struct {
@@ -20,36 +21,49 @@ type HealthCategory struct {
 
 var DefaultHealthConfig = []HealthCategory{
 	{
-		Name: "生化筛查",
+		Name: "生化筛查/肝肾脂糖电解质",
 		Indicators: []HealthIndicator{
-			{Name: "肌酐", Unit: "μmol/L"},
-			{Name: "尿素", Unit: "mmol/L"},
-			{Name: "钾", Unit: "mmol/L"},
-			{Name: "空腹血糖", Unit: "mmol/L"},
+			{Name: "肌酐", Unit: "μmol/L", Reference: "57-97"},
+			{Name: "尿素", Unit: "mmol/L", Reference: "3.10-8.00"},
+			{Name: "尿酸", Unit: "μmol/L", Reference: "208-428"},
+			{Name: "钾", Unit: "mmol/L", Reference: "3.5-5.3"},
+			{Name: "空腹血糖", Unit: "mmol/L", Reference: "3.9-6.1"},
+			{Name: "总胆固醇", Unit: "mmol/L", Reference: "3.14-5.86"},
+			{Name: "总钙", Unit: "mmol/L", Reference: "2.11-2.52"},
 		},
 	},
 	{
 		Name: "血常规",
 		Indicators: []HealthIndicator{
-			{Name: "红细胞", Unit: "×10^12/L"},
-			{Name: "血红蛋白", Unit: "g/L"},
-			{Name: "红细胞压积", Unit: "%"},
+			{Name: "红细胞计数", Unit: "×10^12/L", Reference: "4.09-5.74"},
+			{Name: "血红蛋白", Unit: "g/L", Reference: "131-172"},
+			{Name: "红细胞压积", Unit: "%", Reference: "38.0-50.8"},
+			{Name: "中性粒细胞", Unit: "10E9/L", Reference: "2.0-7.0"},
+			{Name: "淋巴细胞", Unit: "10E9/L", Reference: "0.8-4.0"},
 		},
 	},
 	{
 		Name: "尿常规",
 		Indicators: []HealthIndicator{
-			{Name: "隐血", Unit: "HPF"},
-			{Name: "蛋白质", Unit: "g/L"},
-			{Name: "红细胞", Unit: "HPF"},
-			{Name: "非鳞状上皮细胞", Unit: ""},
+			{Name: "隐血", Unit: "HPF", Reference: "阴性"},
+			{Name: "蛋白质", Unit: "g/L", Reference: "阴性或弱阳性"},
+			{Name: "红细胞", Unit: "HPF", Reference: "0-8"},
+			{Name: "非鳞状上皮细胞", Unit: "μL", Reference: "0-1"},
 		},
 	},
 	{
 		Name: "尿蛋白、尿素、肌酐测定",
 		Indicators: []HealthIndicator{
-			{Name: "尿蛋白", Unit: "mg/dL"},
-			{Name: "尿蛋白肌酐比值", Unit: "mg/g"},
+			{Name: "尿蛋白", Unit: "g/L", Reference: "0.010-0.140"},
+			{Name: "尿肌酐", Unit: "μmol/L", Reference: "3540-24600"},
+			{Name: "尿尿素", Unit: "mmol/L", Reference: "141-494"},
+			{Name: "尿蛋白肌酐比值", Unit: "g/g", Reference: "0.00-0.20"},
+		},
+	},
+	{
+		Name: "血清碳酸氢盐测定",
+		Indicators: []HealthIndicator{
+			{Name: "碳酸氢根浓度", Unit: "mmol/L", Reference: "22.0-27.0"},
 		},
 	},
 }
@@ -147,6 +161,38 @@ func InitDB() {
 		log.Fatalf("Error creating reminders table: %v", err)
 	}
 	log.Println("[DB] reminders 表创建成功或已存在")
+
+	// 创建 user_settings 表
+	createUserSettingsTable := `
+	CREATE TABLE IF NOT EXISTS user_settings (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		setting_key TEXT NOT NULL,
+		setting_value TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(user_id, setting_key)
+	);`
+	_, err = DB.Exec(createUserSettingsTable)
+	if err != nil {
+		log.Fatalf("Error creating user_settings table: %v", err)
+	}
+	log.Println("[DB] user_settings 表创建成功或已存在")
+
+	// 创建索引以加速高频查询
+	createIndexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_health_records_user_id ON health_records(user_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_health_records_user_date ON health_records(user_id, record_date);`,
+		`CREATE INDEX IF NOT EXISTS idx_test_results_record_id ON test_results(record_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_test_results_indicator ON test_results(indicator);`,
+		`CREATE INDEX IF NOT EXISTS idx_reminders_user_active ON reminders(user_id, is_active, next_date);`,
+	}
+	for _, idxSQL := range createIndexes {
+		if _, err := DB.Exec(idxSQL); err != nil {
+			log.Fatalf("Error creating index: %v", err)
+		}
+	}
+	log.Println("[DB] 索引创建成功")
 
 	// 初始化健康指标配置
 	InitHealthConfig()
