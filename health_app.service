@@ -1,0 +1,16 @@
+[Unit]
+Description=Health App Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/workspace/go_path/health_app
+ExecStart=/home/workspace/go_path/health_app/health_app
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/health_app.log
+StandardError=append:/var/log/health_app.log
+
+[Install]
+WantedBy=multi-user.target

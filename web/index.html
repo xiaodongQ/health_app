@@ -261,6 +261,7 @@
         .indicator-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
 
         .chart-container { height: 280px; position: relative; }
+        .chart-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 
         /* === TABLE === */
         .table-card {
@@ -621,15 +622,6 @@
             <div class="stat-grid" id="statGrid">
                 <div class="loading">加载中...</div>
             </div>
-            <div class="chart-card">
-                <div class="chart-card-header">
-                    <span class="chart-card-title">指标趋势</span>
-                    <div class="indicator-tabs" id="chartTabs"></div>
-                </div>
-                <div class="chart-container">
-                    <canvas id="mainChart"></canvas>
-                </div>
-            </div>
         </section>
 
         <!-- TRENDS -->
@@ -637,18 +629,36 @@
             <div class="section-header">
                 <h2>趋势分析</h2>
             </div>
-            <div class="chart-card">
-                <div class="chart-card-header">
-                    <span class="chart-card-title">多指标对比</span>
-                    <div class="indicator-tabs" id="multiChartTabs"></div>
-                    <button onclick="clearAllTrendIndicators()" style="padding:4px 10px;font-size:0.72rem;background:var(--bg-input);border:1px solid var(--border-color);border-radius:6px;color:var(--text-secondary);cursor:pointer;margin-left:8px;">全部取消</button>
-                    <button onclick="resetTrendIndicators()" style="padding:4px 10px;font-size:0.72rem;background:var(--bg-input);border:1px solid var(--border-color);border-radius:6px;color:var(--text-secondary);cursor:pointer;margin-left:4px;">恢复默认</button>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <span class="chart-card-title">肾功能</span>
+                        <div class="indicator-tabs" id="chartTabs_renal"></div>
+                    </div>
+                    <div class="chart-container"><canvas id="chart_renal"></canvas></div>
                 </div>
-                <div class="chart-container">
-                    <canvas id="multiTrendChart"></canvas>
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <span class="chart-card-title">尿检</span>
+                        <div class="indicator-tabs" id="chartTabs_urine"></div>
+                    </div>
+                    <div class="chart-container"><canvas id="chart_urine"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <span class="chart-card-title">血脂血糖</span>
+                        <div class="indicator-tabs" id="chartTabs_lipid"></div>
+                    </div>
+                    <div class="chart-container"><canvas id="chart_lipid"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <span class="chart-card-title">血常规</span>
+                        <div class="indicator-tabs" id="chartTabs_blood"></div>
+                    </div>
+                    <div class="chart-container"><canvas id="chart_blood"></canvas></div>
                 </div>
             </div>
-            <div id="trendTableContainer"></div>
         </section>
 
         <!-- RECORDS -->
@@ -766,8 +776,6 @@
 const API = '/api';
 let currentUserId = 1;
 let healthConfig = [];
-let mainChart = null;
-let multiTrendChart = null;
 let editingRecordId = null;
 let currentSection = 'dashboard';
 let editingPresetResults = [];  // 编辑时保存已有数据，切换类别时不会丢失
@@ -840,7 +848,6 @@ async function loadHealthConfig() {
 async function loadDashboard() {
     await loadHealthConfig();
     await loadStatCards();
-    await loadDashboardChart();
 }
 
 async function loadStatCards() {
@@ -879,216 +886,47 @@ async function loadStatCards() {
     }
 }
 
-async function loadDashboardChart() {
-    const tabsContainer = document.getElementById('chartTabs');
-    const canvas = document.getElementById('mainChart');
-    if (mainChart) mainChart.destroy();
-
-    // 收集所有指标
-    const allIndicators = [];
-    healthConfig.forEach(cat => cat.indicators.forEach(ind => allIndicators.push(ind)));
-
-    tabsContainer.innerHTML = allIndicators.slice(0, 6).map((ind, i) =>
-        `<span class="indicator-tab ${i===0?'active':''}" onclick="switchMainChart('${ind.name}', this)">${ind.name}</span>`
-    ).join('');
-
-    await renderMainChart(allIndicators[0]?.name || '肌酐');
-}
-
-async function switchMainChart(indicator, el) {
-    document.querySelectorAll('#chartTabs .indicator-tab').forEach(t => t.classList.remove('active'));
-    el.classList.add('active');
-    await renderMainChart(indicator);
-}
-
-async function renderMainChart(indicator) {
-    try {
-        const res = await fetch(API + '/trends?user_id=' + currentUserId + '&indicator=' + encodeURIComponent(indicator));
-        const data = await res.json();
-        const config = healthConfig.flatMap(c => c.indicators).find(i => i.name === indicator);
-
-        const labels = data.map(d => d.date);
-        const values = data.map(d => d.value);
-        const pointBg = data.map(d => d.abnormal ? '#f87171' : '#5b8dee');
-
-        const ctx = document.getElementById('mainChart').getContext('2d');
-
-        // 创建渐变填充
-        const gradient = ctx.createLinearGradient(0, 0, 0, 280);
-        gradient.addColorStop(0, 'rgba(91,141,238,0.3)');
-        gradient.addColorStop(1, 'rgba(91,141,238,0.0)');
-
-        mainChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: values,
-                    borderColor: '#5b8dee',
-                    borderWidth: 2.5,
-                    backgroundColor: gradient,
-                    fill: true,
-                    tension: 0.5,
-                    pointBackgroundColor: pointBg,
-                    pointBorderColor: '#1e2230',
-                    pointBorderWidth: 2,
-                    pointRadius: 6,
-                    pointHoverRadius: 9,
-                    pointHoverBackgroundColor: pointBg,
-                    pointHoverBorderColor: '#fff',
-                    pointHoverBorderWidth: 2,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 800, easing: 'easeInOutQuart' },
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: '#1e2230',
-                        borderColor: '#2a2e3f',
-                        borderWidth: 1,
-                        titleColor: '#e8eaf0',
-                        bodyColor: '#8b8fa3',
-                        padding: 12,
-                        cornerRadius: 8,
-                        displayColors: false,
-                        callbacks: {
-                            label: function(ctx) {
-                                const val = ctx.raw;
-                                const ref = config ? config.reference : '';
-                                return val + (config ? ' ' + config.unit : '') + (ref ? ' (参考:' + ref + ')' : '');
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: { color: 'rgba(255,255,255,0.04)' },
-                        ticks: { color: '#6c6070', font: { size: 11 } }
-                    },
-                    y: {
-                        grid: { color: 'rgba(255,255,255,0.04)' },
-                        ticks: { color: '#6c6070', font: { size: 11 } }
-                    }
-                }
-            }
-        });
-    } catch (e) { }
-}
-
 // === TRENDS ===
+const chartGroups = {
+    renal: { title: '肾功能', indicators: ['肌酐', '尿素', '尿酸', '肾小球滤过率epi-cr'] },
+    urine: { title: '尿检', indicators: ['尿蛋白', '尿蛋白肌酐比值', '尿肌酐', '尿尿素'] },
+    lipid: { title: '血脂血糖', indicators: ['总胆固醇', '甘油三酯', '空腹血糖'] },
+    blood: { title: '血常规', indicators: ['红细胞计数', '血红蛋白', '红细胞压积', '中性粒细胞', '淋巴细胞'] }
+};
+
+const chartInstances = {};
+const chartSelected = {};
+
 async function loadTrends() {
     await loadHealthConfig();
-    await loadMultiTrendChart();
-}
-
-async function loadMultiTrendChart() {
-    const tabsContainer = document.getElementById('multiChartTabs');
-    if (multiTrendChart) multiTrendChart.destroy();
-
-    const allIndicators = healthConfig.flatMap(c => c.indicators);
-
-    // 从后端获取已保存的选择，没有则用全部
-    let defaultNames = allIndicators.map(i => i.name);
-    try {
-        const res = await fetch(API + '/settings?user_id=' + currentUserId + '&key=trendIndicators');
-        const data = await res.json();
-        if (data.value) defaultNames = JSON.parse(data.value);
-    } catch(e) {}
-
-    tabsContainer.innerHTML = allIndicators.map((ind, i) =>
-        `<span class="indicator-tab ${defaultNames.includes(ind.name)?'active':''}" onclick="toggleMultiIndicator('${ind.name}', this)">${ind.name}</span>`
-    ).join('');
-
-    selectedMultiIndicators.length = 0;
-    selectedMultiIndicators.push(...defaultNames);
-    await renderMultiChart([...selectedMultiIndicators]);
-}
-
-const selectedMultiIndicators = [];
-async function toggleMultiIndicator(name, el) {
-    const idx = selectedMultiIndicators.indexOf(name);
-    if (idx >= 0) {
-        selectedMultiIndicators.splice(idx, 1);
-        el.classList.remove('active');
-    } else {
-        if (selectedMultiIndicators.length >= 20) { showToast('最多选择20个指标', 'error'); return; }
-        selectedMultiIndicators.push(name);
-        el.classList.add('active');
+    for (const [key, group] of Object.entries(chartGroups)) {
+        chartSelected[key] = [...group.indicators];
+        await renderGroupChart(key);
     }
-    await fetch(API + '/settings', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({user_id: currentUserId, key: 'trendIndicators', value: JSON.stringify([...selectedMultiIndicators])})
-    });
-    await renderMultiChart([...selectedMultiIndicators]);
 }
 
-const coreIndicators = ['肌酐','尿素','尿酸','钾','空腹血糖','红细胞计数','血红蛋白','红细胞压积','尿蛋白','尿蛋白肌酐比值'];
+async function renderGroupChart(groupKey) {
+    const canvas = document.getElementById('chart_' + groupKey);
+    if (chartInstances[groupKey]) { chartInstances[groupKey].destroy(); chartInstances[groupKey] = null; }
+    if (!canvas) return;
 
-async function clearAllTrendIndicators() {
-    selectedMultiIndicators.length = 0;
-    await fetch(API + '/settings', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({user_id: currentUserId, key: 'trendIndicators', value: JSON.stringify([])})
-    });
-    document.querySelectorAll('#multiChartTabs .indicator-tab').forEach(el => el.classList.remove('active'));
-    await renderMultiChart([...selectedMultiIndicators]);
-}
-
-async function resetTrendIndicators() {
-    const allIndicators = healthConfig.flatMap(c => c.indicators);
-    const coreNames = coreIndicators.filter(n => allIndicators.some(i => i.name === n));
-    selectedMultiIndicators.length = 0;
-    selectedMultiIndicators.push(...coreNames);
-    await fetch(API + '/settings', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({user_id: currentUserId, key: 'trendIndicators', value: JSON.stringify(coreNames)})
-    });
-    document.querySelectorAll('#multiChartTabs .indicator-tab').forEach(el => {
-        el.classList.toggle('active', coreNames.includes(el.textContent));
-    });
-    await renderMultiChart([...selectedMultiIndicators]);
-}
-
-async function renderMultiChart(indicators) {
-    const canvas = document.getElementById('multiTrendChart');
-    if (multiTrendChart) { multiTrendChart.destroy(); multiTrendChart = null; await new Promise(r => setTimeout(r, 50)); }
+    const indicators = chartSelected[groupKey] || [];
     if (indicators.length === 0) return;
-    console.log('renderMultiChart indicators count:', indicators.length, indicators);
 
-    const uniqueInds = [...new Set(indicators)];
-    const colors = [
-        '#5b8dee', '#34d399', '#fbbf24', '#f87171',
-        '#a78bfa', '#f472b6', '#38bdf8', '#4ade80',
-        '#fb923c', '#e879f9', '#22d3ee', '#86efac',
-        '#fdba74', '#f0abfc', '#7dd3fc', '#6ee7b7',
-        '#c084fc', '#f9a8d4', '#67e8f9', '#bbf7d0',
-        '#fed7aa', '#fbcfe8', '#bae6fd', '#d9f99d',
-        '#fde68a', '#fecdd3', '#e0f2fe', '#dcfce7',
-        '#fef3c7', '#fce7f3', '#f0f9ff', '#f0fdf4'
-    ];
+    const colors = ['#5b8dee', '#34d399', '#fbbf24', '#f87171', '#a78bfa'];
     const allDatesSet = new Set();
-    const dateValMap = {};  // indicator name -> {date: value}
+    const dateValMap = {};
     const datasetMap = {};
 
-    for (let i = 0; i < uniqueInds.length; i++) {
-        const name = uniqueInds[i];
+    for (let i = 0; i < indicators.length; i++) {
+        const name = indicators[i];
         try {
             const res = await fetch(API + '/trends?user_id=' + currentUserId + '&indicator=' + encodeURIComponent(name));
             const data = await res.json();
             if (!data || !Array.isArray(data) || data.length === 0) continue;
 
             dateValMap[name] = {};
-            data.forEach(d => {
-                allDatesSet.add(d.date);
-                dateValMap[name][d.date] = d.value;
-            });
+            data.forEach(d => { allDatesSet.add(d.date); dateValMap[name][d.date] = d.value; });
 
             const ctx2d = canvas.getContext('2d');
             const grad = ctx2d.createLinearGradient(0, 0, 0, 280);
@@ -1096,65 +934,39 @@ async function renderMultiChart(indicators) {
             grad.addColorStop(1, colors[i] + '00');
 
             datasetMap[name] = {
-                label: name,
-                data: [],
-                borderColor: colors[i],
-                borderWidth: 2.5,
-                backgroundColor: grad,
-                fill: true,
-                tension: 0.5,
-                pointRadius: 5,
-                pointHoverRadius: 8,
-                pointBackgroundColor: colors[i],
-                pointBorderColor: '#1e2230',
-                pointBorderWidth: 2,
+                label: name, data: [],
+                borderColor: colors[i], borderWidth: 2.5,
+                backgroundColor: grad, fill: true, tension: 0.5,
+                pointRadius: 5, pointHoverRadius: 8,
+                pointBackgroundColor: colors[i], pointBorderColor: '#1e2230', pointBorderWidth: 2,
             };
         } catch (e) {}
     }
 
     const allDates = Array.from(allDatesSet).sort();
-    if (allDates.length === 0) return;  // 没有数据不渲染
+    if (allDates.length === 0) return;
 
-    const datasets = uniqueInds
-        .filter(name => datasetMap[name])
-        .map((name, i) => {
-            const ds = datasetMap[name];
-            ds.data = allDates.map(d => dateValMap[name] ? (dateValMap[name][d] || null) : null);
-            return ds;
-        });
+    const datasets = indicators.filter(name => datasetMap[name]).map(name => {
+        const ds = datasetMap[name];
+        ds.data = allDates.map(d => dateValMap[name] ? (dateValMap[name][d] || null) : null);
+        return ds;
+    });
 
     const ctx = canvas.getContext('2d');
-    multiTrendChart = new Chart(ctx, {
+    chartInstances[groupKey] = new Chart(ctx, {
         type: 'line',
         data: { labels: allDates, datasets },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             animation: { duration: 1000, easing: 'easeInOutQuart' },
             interaction: { mode: 'index', intersect: false },
             plugins: {
-                legend: {
-                    labels: { color: '#b8bcc8', font: { size: 12 }, padding: 20, usePointStyle: true, pointStyleWidth: 20 }
-                },
-                tooltip: {
-                    backgroundColor: '#1e2230',
-                    borderColor: '#2a2e3f',
-                    borderWidth: 1,
-                    titleColor: '#e8eaf0',
-                    bodyColor: '#8b8fa3',
-                    padding: 12,
-                    cornerRadius: 8,
-                }
+                legend: { labels: { color: '#b8bcc8', font: { size: 12 }, padding: 16, usePointStyle: true, pointStyleWidth: 16 } },
+                tooltip: { backgroundColor: '#1e2230', borderColor: '#2a2e3f', borderWidth: 1, titleColor: '#e8eaf0', bodyColor: '#8b8fa3', padding: 12, cornerRadius: 8 }
             },
             scales: {
-                x: {
-                    grid: { color: 'rgba(255,255,255,0.04)' },
-                    ticks: { color: '#6c6070', font: { size: 11 } }
-                },
-                y: {
-                    grid: { color: 'rgba(255,255,255,0.04)' },
-                    ticks: { color: '#6c6070', font: { size: 11 } }
-                }
+                x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6c6070', font: { size: 11 } } },
+                y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6c6070', font: { size: 11 } } }
             }
         }
     });
